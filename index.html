@@ -50,6 +50,7 @@ button{cursor:pointer;min-height:48px}
 .bars{display:flex;flex-direction:column;gap:6px;margin-top:12px}
 .bar{display:grid;grid-template-columns:minmax(0,110px) 1fr auto;gap:10px;align-items:center;overflow-wrap:anywhere}
 .bar i{display:block;height:10px}
+#trip>div{margin-bottom:12px}#trip summary{border:0}
 .empty{color:var(--mut);margin:0;padding:8px 0}
 .goal{margin-top:12px}.goal progress{width:100%;height:14px;accent-color:var(--gain)}
 .week .item span:first-child{text-transform:capitalize}
@@ -78,6 +79,14 @@ details>div{margin-bottom:12px}
 <div><label for="cat" id="catL">Aplicación</label><select id="cat"></select></div>
 <div><label for="monto">Monto en pesos</label><input type="number" id="monto" inputmode="numeric" min="0" placeholder="0"></div>
 <div><label for="pago">Forma de pago</label><select id="pago"><option>Efectivo</option><option>Tarjeta</option><option>Transferencia</option></select></div>
+<details id="trip"><summary>Datos de la carrera (opcional)</summary>
+<div><label for="orig">Recogida</label><input type="text" id="orig" maxlength="60"></div>
+<div><label for="dest">Destino</label><input type="text" id="dest" maxlength="60"></div>
+<div><label for="kr">Km hasta la recogida</label><input type="number" id="kr" inputmode="decimal" min="0" step="0.1"></div>
+<div><label for="kv">Km del viaje</label><input type="number" id="kv" inputmode="decimal" min="0" step="0.1"></div>
+<div><label for="mins">Minutos en total</label><input type="number" id="mins" inputmode="numeric" min="0"></div>
+<p class="empty" id="calif" role="status">Escribe el monto y los km para calificar la carrera.</p>
+</details>
 <div><label for="nota">Nota (opcional)</label><input type="text" id="nota"></div>
 <button class="go" id="add">Agregar</button>
 </section>
@@ -104,6 +113,16 @@ details>div{margin-bottom:12px}
 </section>
 
 <div>
+<details><summary>Costo por km y calificación</summary>
+<div><label for="gal">Precio del galón de gasolina</label><input type="number" id="gal" inputmode="numeric" min="0"></div>
+<div><label for="rend">Km que rinde un galón</label><input type="number" id="rend" inputmode="decimal" min="0"></div>
+<div><label for="mant">Mantenimiento por km (aceite, llantas)</label><input type="number" id="mant" inputmode="numeric" min="0"></div>
+<div><label for="exc">Excelente: ganancia por km desde</label><input type="number" id="exc" inputmode="numeric" min="0"></div>
+<div><label for="bue">Buena: ganancia por km desde</label><input type="number" id="bue" inputmode="numeric" min="0"></div>
+<p class="empty">Los valores 1500 y 800 son de ejemplo. Ajústalos con tus carreras.</p>
+<div><button class="go" id="saveCfg">Guardar costos</button></div>
+<p class="empty" id="cfgMsg" role="status"></p>
+</details>
 <details><summary>Meta diaria</summary>
 <div><label for="meta">Cuánto quieres ganar al día</label><input type="number" id="meta" inputmode="numeric" min="0" placeholder="Ej: 80000"></div>
 <div><button class="go" id="saveMeta">Guardar meta</button></div>
@@ -126,19 +145,23 @@ details>div{margin-bottom:12px}
 </main>
 <script>
 (function(){
-var KEY='cuentas-moto-v1',data=[],mode='in',extra=[],extraG=[],meta=0;
+var KEY='cuentas-moto-v1',data=[],mode='in',extra=[],extraG=[],meta=0,cfg={gal:0,rend:0,mant:0,exc:1500,bue:800};
 var BASE=[['Uber','var(--ink)'],['Didi','var(--didi)'],['Otros servicios','var(--otro)']],SRC=BASE;
 function buildSrc(){SRC=BASE.concat(extra.map(function(n){return [n,'var(--ruta)']}))}
 var GAS=['Gasolina','Aceite','Llantas','Mantenimiento','Almuerzo','Café','Baño','Otro'];
-function load(){try{data=JSON.parse(localStorage.getItem(KEY)||'[]')}catch(e){data=[]}try{extra=JSON.parse(localStorage.getItem(KEY+'-apps')||'[]')}catch(e){extra=[]}try{extraG=JSON.parse(localStorage.getItem(KEY+'-gastos')||'[]')}catch(e){extraG=[]}try{meta=Number(localStorage.getItem(KEY+'-meta'))||0}catch(e){meta=0}buildSrc()}
-function save(){try{localStorage.setItem(KEY,JSON.stringify(data));localStorage.setItem(KEY+'-apps',JSON.stringify(extra));localStorage.setItem(KEY+'-gastos',JSON.stringify(extraG));localStorage.setItem(KEY+'-meta',String(meta))}catch(e){}}
+function load(){try{data=JSON.parse(localStorage.getItem(KEY)||'[]')}catch(e){data=[]}try{extra=JSON.parse(localStorage.getItem(KEY+'-apps')||'[]')}catch(e){extra=[]}try{extraG=JSON.parse(localStorage.getItem(KEY+'-gastos')||'[]')}catch(e){extraG=[]}try{meta=Number(localStorage.getItem(KEY+'-meta'))||0}catch(e){meta=0}try{Object.assign(cfg,JSON.parse(localStorage.getItem(KEY+'-cfg')||'{}'))}catch(e){}buildSrc()}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(data));localStorage.setItem(KEY+'-apps',JSON.stringify(extra));localStorage.setItem(KEY+'-gastos',JSON.stringify(extraG));localStorage.setItem(KEY+'-meta',String(meta));localStorage.setItem(KEY+'-cfg',JSON.stringify(cfg))}catch(e){}}
 function $(i){return document.getElementById(i)}
 function today(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
 function money(n){return (n<0?'-':'')+'$'+Math.abs(Math.round(n)).toLocaleString('es-CO')}
 function sum(a){return a.reduce(function(s,x){return s+x.amt},0)}
-function setMode(m){mode=m;$('tIn').setAttribute('aria-pressed',m==='in');$('tOut').setAttribute('aria-pressed',m==='out');$('nota').placeholder=m==='in'?'Ej: domicilio particular, propina':'Ej: tanqueada completa';$('catL').textContent=m==='in'?'Aplicación':'Tipo de gasto';options()}
+function setMode(m){mode=m;$('trip').hidden=m!=='in';$('tIn').setAttribute('aria-pressed',m==='in');$('tOut').setAttribute('aria-pressed',m==='out');$('nota').placeholder=m==='in'?'Ej: domicilio particular, propina':'Ej: tanqueada completa';$('catL').textContent=m==='in'?'Aplicación':'Tipo de gasto';options()}
 function options(sel){var c=$('cat');c.innerHTML='';(mode==='in'?SRC.map(function(x){return x[0]}):GAS.concat(extraG)).forEach(function(n){c.add(new Option(n,n))});if(sel)c.value=sel}
 function color(n){for(var i=0;i<SRC.length;i++)if(SRC[i][0]===n)return SRC[i][1];return 'var(--loss)'}
+function costoKm(){return cfg.rend>0?cfg.gal/cfg.rend+cfg.mant:0}
+function evaluar(v,kr,kv,min,c){var km=kr+kv;if(!(v>0)||!(km>0))return '';if(!(c>0))return 'Falta guardar el costo por km';var g=v-km*c,p=g/km;return (p>=cfg.exc?'Excelente':p>=cfg.bue?'Buena':'Mala')+': deja '+money(g)+', '+money(p)+' por km'+(min>0?', '+money(g/min*60)+' por hora':'')+'. Costo '+money(c)+' por km'}
+function num(i){return Math.max(0,parseFloat($(i).value)||0)}
+function preview(){$('calif').textContent=evaluar(num('monto'),num('kr'),num('kv'),num('mins'),costoKm())||'Escribe el monto y los km para calificar la carrera.'}
 function render(){
 var f=$('fecha').value||today(),day=data.filter(function(x){return x.d===f});
 var di=sum(day.filter(function(x){return x.t==='in'})),dO=sum(day.filter(function(x){return x.t==='out'}));
@@ -148,7 +171,7 @@ SRC.forEach(function(s){var v=sum(day.filter(function(x){return x.t==='in'&&x.c=
 var pg=$('pagos');pg.innerHTML='';['Efectivo','Tarjeta','Transferencia'].forEach(function(p){var a=day.filter(function(x){return x.p===p});if(!a.length)return;var v=sum(a.filter(function(x){return x.t==='in'}))-sum(a.filter(function(x){return x.t==='out'}));var r=document.createElement('div');r.className='item';var k=document.createElement('span');k.textContent='Neto en '+p.toLowerCase();var m=document.createElement('span');m.className='amt';m.textContent=money(v);r.appendChild(k);r.appendChild(m);pg.appendChild(r)});
 var l=$('list');l.innerHTML='';
 if(!day.length){l.innerHTML='<div class="empty">Sin movimientos este día. Agrega tu primera ganancia arriba.</div>'}
-day.slice().reverse().forEach(function(x){var e=document.createElement('div');e.className='item';var t=document.createElement('div');t.className='t';t.innerHTML='<div><span class="dot" style="background:'+(x.t==='in'?color(x.c):'var(--loss)')+'"></span></div><small></small>';t.firstChild.appendChild(document.createTextNode(x.c));t.lastChild.textContent=[x.p,x.n].filter(Boolean).join(', ');var a=document.createElement('span');a.className='amt '+(x.t==='in'?'g':'l');a.textContent=(x.t==='in'?'+':'−')+money(x.amt);var b=document.createElement('button');b.className='x';b.setAttribute('aria-label','Borrar');b.textContent='×';b.onclick=function(){data=data.filter(function(y){return y.id!==x.id});save();render()};var r=document.createElement('div');r.className='row';r.style.flexWrap='nowrap';r.appendChild(a);r.appendChild(b);e.appendChild(t);e.appendChild(r);l.appendChild(e)});
+day.slice().reverse().forEach(function(x){var e=document.createElement('div');e.className='item';var t=document.createElement('div');t.className='t';t.innerHTML='<div><span class="dot" style="background:'+(x.t==='in'?color(x.c):'var(--loss)')+'"></span></div><small></small>';t.firstChild.appendChild(document.createTextNode(x.c));t.lastChild.textContent=[x.p,x.o||x.de?(x.o||'?')+' a '+(x.de||'?'):'',x.kr+x.kv>0?+(x.kr+x.kv).toFixed(1)+' km':'',x.t==='in'&&x.kr+x.kv>0?evaluar(x.amt,x.kr,x.kv,x.min,x.cpk):'',x.n].filter(Boolean).join(', ');var a=document.createElement('span');a.className='amt '+(x.t==='in'?'g':'l');a.textContent=(x.t==='in'?'+':'−')+money(x.amt);var b=document.createElement('button');b.className='x';b.setAttribute('aria-label','Borrar');b.textContent='×';b.onclick=function(){data=data.filter(function(y){return y.id!==x.id});save();render()};var r=document.createElement('div');r.className='row';r.style.flexWrap='nowrap';r.appendChild(a);r.appendChild(b);e.appendChild(t);e.appendChild(r);l.appendChild(e)});
 $('goalBox').hidden=!meta;if(meta){$('goalBar').value=Math.min(100,di/meta*100);$('goalTxt').textContent=di>=meta?'Meta cumplida: '+money(di)+' de '+money(meta):'Faltan '+money(meta-di)+' para la meta de '+money(meta)}
 var ini=new Date(f+'T12:00:00');ini.setDate(ini.getDate()-(ini.getDay()+6)%7);var wi=0,wo=0,wd=$('wDays');wd.innerHTML='';
 for(var i=0;i<7;i++){var q=new Date(ini);q.setDate(ini.getDate()+i);var k=q.getFullYear()+'-'+String(q.getMonth()+1).padStart(2,'0')+'-'+String(q.getDate()).padStart(2,'0');var dd=data.filter(function(x){return x.d===k});if(!dd.length)continue;var a1=sum(dd.filter(function(x){return x.t==='in'})),b1=sum(dd.filter(function(x){return x.t==='out'}));wi+=a1;wo+=b1;var row=document.createElement('div');row.className='item';var nm=document.createElement('span');nm.textContent=q.toLocaleDateString('es-CO',{weekday:'long',day:'numeric'})+(meta&&a1>=meta?' ✓ meta':'');var vl=document.createElement('span');vl.className='amt';vl.textContent=money(a1-b1);row.appendChild(nm);row.appendChild(vl);wd.appendChild(row)}
@@ -161,13 +184,15 @@ var dt=new Date(f+'T12:00:00');$('mTitle').textContent='Mes de '+dt.toLocaleDate
 $('tIn').onclick=function(){setMode('in')};$('tOut').onclick=function(){setMode('out')};
 $('fecha').onchange=render;
 $('add').onclick=function(){var v=parseFloat($('monto').value);if(!(v>0)){$('monto').focus();return}
-data.push({id:Date.now(),d:$('fecha').value||today(),t:mode,c:$('cat').value,p:$('pago').value,amt:v,n:$('nota').value.trim()});save();$('monto').value='';$('nota').value='';render()};
+data.push({id:Date.now(),d:$('fecha').value||today(),t:mode,c:$('cat').value,p:$('pago').value,amt:v,n:$('nota').value.trim()});if(mode==='in'){var u=data[data.length-1];u.o=$('orig').value.trim();u.de=$('dest').value.trim();u.kr=num('kr');u.kv=num('kv');u.min=num('mins');u.cpk=costoKm()}['orig','dest','kr','kv','mins'].forEach(function(i){$(i).value=''});preview();save();$('monto').value='';$('nota').value='';render()};
 $('addSrc').onclick=function(){var n=$('nueva').value.trim();if(!n){$('nueva').focus();return}var found=SRC.filter(function(x){return x[0].toLowerCase()===n.toLowerCase()})[0];if(found){n=found[0]}else{extra.push(n);buildSrc();save()}$('nueva').value='';setMode('in');options(n);render()};
 $('addGas').onclick=function(){var n=$('nuevoG').value.trim();if(!n){$('nuevoG').focus();return}var found=GAS.concat(extraG).filter(function(x){return x.toLowerCase()===n.toLowerCase()})[0];if(found){n=found}else{extraG.push(n);save()}$('nuevoG').value='';setMode('out');options(n);$('monto').focus()};
 $('saveMeta').onclick=function(){meta=Math.max(0,Number($('meta').value)||0);save();render()};
-$('exp').onclick=function(){var t=JSON.stringify({data:data,apps:extra,gastos:extraG,meta:meta});$('bk').value=t;function manual(){$('bk').select();$('msg').textContent='Selecciona el texto y cópialo.'}try{navigator.clipboard.writeText(t).then(function(){$('msg').textContent='Respaldo copiado.'},manual)}catch(e){manual()}};
-$('imp').onclick=function(){try{var o=JSON.parse($('bk').value);var ok=Array.isArray(o.data)&&Array.isArray(o.apps)&&o.apps.every(function(n){return typeof n==='string'})&&o.data.every(function(x){return x&&typeof x.d==='string'&&typeof x.c==='string'&&(x.t==='in'||x.t==='out')&&typeof x.amt==='number'&&(x.p===undefined||typeof x.p==='string')});var g=o.gastos||[];if(!ok||!Array.isArray(g)||!g.every(function(n){return typeof n==='string'}))throw 0;g.forEach(function(n){if(extraG.indexOf(n)<0)extraG.push(n)});var ids={};data.forEach(function(x){ids[x.id]=1});o.data.forEach(function(x){if(!ids[x.id])data.push(x)});o.apps.forEach(function(n){if(extra.indexOf(n)<0)extra.push(n)});if(!meta&&typeof o.meta==='number'&&o.meta>0){meta=o.meta;$('meta').value=meta}buildSrc();save();setMode(mode);render();$('msg').textContent='Respaldo restaurado.'}catch(e){$('msg').textContent='Ese texto no es un respaldo válido. Pégalo completo.'}};
-load();$('meta').value=meta||'';$('fecha').value=today();setMode('in');render();
+['monto','kr','kv','mins'].forEach(function(i){$(i).addEventListener('input',preview)});
+$('saveCfg').onclick=function(){['gal','rend','mant','exc','bue'].forEach(function(i){cfg[i]=num(i)});save();preview();render();$('cfgMsg').textContent=costoKm()>0?'Guardado. Cada km te cuesta '+money(costoKm())+'.':'Falta el rendimiento y el precio de la gasolina.'};
+$('exp').onclick=function(){var t=JSON.stringify({data:data,apps:extra,gastos:extraG,meta:meta,cfg:cfg});$('bk').value=t;function manual(){$('bk').select();$('msg').textContent='Selecciona el texto y cópialo.'}try{navigator.clipboard.writeText(t).then(function(){$('msg').textContent='Respaldo copiado.'},manual)}catch(e){manual()}};
+$('imp').onclick=function(){try{var o=JSON.parse($('bk').value);var ok=Array.isArray(o.data)&&Array.isArray(o.apps)&&o.apps.every(function(n){return typeof n==='string'})&&o.data.every(function(x){return x&&typeof x.d==='string'&&typeof x.c==='string'&&(x.t==='in'||x.t==='out')&&typeof x.amt==='number'&&(x.p===undefined||typeof x.p==='string')&&['kr','kv','min','cpk'].every(function(k){return x[k]===undefined||typeof x[k]==='number'})});var g=o.gastos||[];if(!ok||!Array.isArray(g)||!g.every(function(n){return typeof n==='string'}))throw 0;g.forEach(function(n){if(extraG.indexOf(n)<0)extraG.push(n)});var ids={};data.forEach(function(x){ids[x.id]=1});o.data.forEach(function(x){if(!ids[x.id])data.push(x)});o.apps.forEach(function(n){if(extra.indexOf(n)<0)extra.push(n)});if(!cfg.rend&&o.cfg){['gal','rend','mant','exc','bue'].forEach(function(i){if(typeof o.cfg[i]==='number'){cfg[i]=o.cfg[i];$(i).value=cfg[i]||''}})}if(!meta&&typeof o.meta==='number'&&o.meta>0){meta=o.meta;$('meta').value=meta}buildSrc();save();setMode(mode);render();$('msg').textContent='Respaldo restaurado.'}catch(e){$('msg').textContent='Ese texto no es un respaldo válido. Pégalo completo.'}};
+load();['gal','rend','mant','exc','bue'].forEach(function(i){$(i).value=cfg[i]||''});$('meta').value=meta||'';$('fecha').value=today();setMode('in');render();
 })();
 </script>
 </body>

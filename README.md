@@ -9,6 +9,7 @@ Control diario de ganancias y gastos para domiciliarios en moto. Funciona en el 
 - Forma de pago: efectivo, tarjeta o transferencia, con el neto del día por cada una.
 - Neto del día, movimientos por fecha y resumen del mes.
 - Resumen semanal (lunes a domingo) y meta diaria de ganancias.
+- Carreras con recogida, destino y km: costo por km y calificación (excelente, buena o mala).
 - Respaldo: copiar los datos como texto y restaurarlos.
 - Modo claro y oscuro según el celular.
 
