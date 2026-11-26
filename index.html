@@ -51,7 +51,9 @@ button{cursor:pointer;min-height:48px}
 .bar{display:grid;grid-template-columns:minmax(0,110px) 1fr auto;gap:10px;align-items:center;overflow-wrap:anywhere}
 .bar i{display:block;height:10px}
 .empty{color:var(--mut);margin:0;padding:8px 0}
-.month .stats{grid-template-columns:repeat(3,minmax(0,1fr))}
+.goal{margin-top:12px}.goal progress{width:100%;height:14px;accent-color:var(--gain)}
+.week .item span:first-child{text-transform:capitalize}
+.month .stats,.week .stats{grid-template-columns:repeat(3,minmax(0,1fr))}
 summary{cursor:pointer;font-weight:600;padding:12px 0;border-top:1px solid var(--line)}
 details>div{margin-bottom:12px}
 </style>
@@ -66,18 +68,31 @@ details>div{margin-bottom:12px}
 <div class="stat"><small>Ganado</small><b class="g" id="dIn">$0</b></div>
 <div class="stat"><small>Gastos</small><b class="l" id="dOut">$0</b></div>
 </div>
+<div class="goal" id="goalBox" hidden><progress id="goalBar" max="100" value="0" aria-label="Avance de la meta"></progress><div id="goalTxt"></div></div>
 <div class="bars" id="bars"></div>
+<div id="pagos"></div>
 </section>
 
 <section class="form">
 <div class="tabs" role="group" aria-label="Tipo"><button class="tab" id="tIn" aria-pressed="true">Ganancia</button><button class="tab" id="tOut" aria-pressed="false">Gasto</button></div>
 <div><label for="cat" id="catL">Aplicación</label><select id="cat"></select></div>
 <div><label for="monto">Monto en pesos</label><input type="number" id="monto" inputmode="numeric" min="0" placeholder="0"></div>
+<div><label for="pago">Forma de pago</label><select id="pago"><option>Efectivo</option><option>Tarjeta</option><option>Transferencia</option></select></div>
 <div><label for="nota">Nota (opcional)</label><input type="text" id="nota"></div>
 <button class="go" id="add">Agregar</button>
 </section>
 
 <section><h2>Movimientos del día</h2><div id="list"></div></section>
+
+<section class="week">
+<h2>Semana</h2>
+<div class="stats">
+<div class="stat"><small>Ganado</small><b class="g" id="wIn">$0</b></div>
+<div class="stat"><small>Gastos</small><b class="l" id="wOut">$0</b></div>
+<div class="stat"><small>Neto</small><b id="wNet">$0</b></div>
+</div>
+<div id="wDays"></div>
+</section>
 
 <section class="month">
 <h2 id="mTitle">Mes</h2>
@@ -89,9 +104,17 @@ details>div{margin-bottom:12px}
 </section>
 
 <div>
+<details><summary>Meta diaria</summary>
+<div><label for="meta">Cuánto quieres ganar al día</label><input type="number" id="meta" inputmode="numeric" min="0" placeholder="Ej: 80000"></div>
+<div><button class="go" id="saveMeta">Guardar meta</button></div>
+</details>
 <details><summary>Mis aplicaciones</summary>
 <div><label for="nueva">Agregar aplicación o servicio</label><input type="text" id="nueva" maxlength="30" placeholder="Ej: InDrive, Rappi"></div>
 <div><button class="go" id="addSrc">Agregar a la lista</button></div>
+</details>
+<details><summary>Otro tipo de gasto</summary>
+<div><label for="nuevoG">Agregar tipo de gasto</label><input type="text" id="nuevoG" maxlength="30" placeholder="Ej: parqueadero, recarga de celular"></div>
+<div><button class="go" id="addGas">Agregar gasto a la lista</button></div>
 </details>
 <details><summary>Respaldo</summary>
 <div><button class="go" id="exp">Copiar respaldo</button></div>
@@ -103,18 +126,18 @@ details>div{margin-bottom:12px}
 </main>
 <script>
 (function(){
-var KEY='cuentas-moto-v1',data=[],mode='in',extra=[];
+var KEY='cuentas-moto-v1',data=[],mode='in',extra=[],extraG=[],meta=0;
 var BASE=[['Uber','var(--ink)'],['Didi','var(--didi)'],['Otros servicios','var(--otro)']],SRC=BASE;
 function buildSrc(){SRC=BASE.concat(extra.map(function(n){return [n,'var(--ruta)']}))}
-var GAS=['Gasolina','Aceite','Llantas','Mantenimiento','Otro'];
-function load(){try{data=JSON.parse(localStorage.getItem(KEY)||'[]')}catch(e){data=[]}try{extra=JSON.parse(localStorage.getItem(KEY+'-apps')||'[]')}catch(e){extra=[]}buildSrc()}
-function save(){try{localStorage.setItem(KEY,JSON.stringify(data));localStorage.setItem(KEY+'-apps',JSON.stringify(extra))}catch(e){}}
+var GAS=['Gasolina','Aceite','Llantas','Mantenimiento','Almuerzo','Café','Baño','Otro'];
+function load(){try{data=JSON.parse(localStorage.getItem(KEY)||'[]')}catch(e){data=[]}try{extra=JSON.parse(localStorage.getItem(KEY+'-apps')||'[]')}catch(e){extra=[]}try{extraG=JSON.parse(localStorage.getItem(KEY+'-gastos')||'[]')}catch(e){extraG=[]}try{meta=Number(localStorage.getItem(KEY+'-meta'))||0}catch(e){meta=0}buildSrc()}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(data));localStorage.setItem(KEY+'-apps',JSON.stringify(extra));localStorage.setItem(KEY+'-gastos',JSON.stringify(extraG));localStorage.setItem(KEY+'-meta',String(meta))}catch(e){}}
 function $(i){return document.getElementById(i)}
 function today(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
 function money(n){return (n<0?'-':'')+'$'+Math.abs(Math.round(n)).toLocaleString('es-CO')}
 function sum(a){return a.reduce(function(s,x){return s+x.amt},0)}
 function setMode(m){mode=m;$('tIn').setAttribute('aria-pressed',m==='in');$('tOut').setAttribute('aria-pressed',m==='out');$('nota').placeholder=m==='in'?'Ej: domicilio particular, propina':'Ej: tanqueada completa';$('catL').textContent=m==='in'?'Aplicación':'Tipo de gasto';options()}
-function options(sel){var c=$('cat');c.innerHTML='';(mode==='in'?SRC.map(function(x){return x[0]}):GAS).forEach(function(n){c.add(new Option(n,n))});if(sel)c.value=sel}
+function options(sel){var c=$('cat');c.innerHTML='';(mode==='in'?SRC.map(function(x){return x[0]}):GAS.concat(extraG)).forEach(function(n){c.add(new Option(n,n))});if(sel)c.value=sel}
 function color(n){for(var i=0;i<SRC.length;i++)if(SRC[i][0]===n)return SRC[i][1];return 'var(--loss)'}
 function render(){
 var f=$('fecha').value||today(),day=data.filter(function(x){return x.d===f});
@@ -122,9 +145,14 @@ var di=sum(day.filter(function(x){return x.t==='in'})),dO=sum(day.filter(functio
 $('dIn').textContent=money(di);$('dOut').textContent=money(dO);var n=di-dO;$('dNet').textContent=money(n);$('dNet').className=n<0?'neg':'';$('dDate').textContent=new Date(f+'T12:00:00').toLocaleDateString('es-CO',{weekday:'long',day:'numeric',month:'long'});
 var bars=$('bars');bars.innerHTML='';
 SRC.forEach(function(s){var v=sum(day.filter(function(x){return x.t==='in'&&x.c===s[0]}));if(!v)return;var r=document.createElement('div');r.className='bar';r.innerHTML='<span><span class="dot" style="background:'+s[1]+'"></span>'+'</span><div><i style="width:'+Math.max(4,v/di*100)+'%;background:'+s[1]+'"></i></div><b>'+money(v)+'</b>';r.firstChild.appendChild(document.createTextNode(s[0]));bars.appendChild(r)});
+var pg=$('pagos');pg.innerHTML='';['Efectivo','Tarjeta','Transferencia'].forEach(function(p){var a=day.filter(function(x){return x.p===p});if(!a.length)return;var v=sum(a.filter(function(x){return x.t==='in'}))-sum(a.filter(function(x){return x.t==='out'}));var r=document.createElement('div');r.className='item';var k=document.createElement('span');k.textContent='Neto en '+p.toLowerCase();var m=document.createElement('span');m.className='amt';m.textContent=money(v);r.appendChild(k);r.appendChild(m);pg.appendChild(r)});
 var l=$('list');l.innerHTML='';
 if(!day.length){l.innerHTML='<div class="empty">Sin movimientos este día. Agrega tu primera ganancia arriba.</div>'}
-day.slice().reverse().forEach(function(x){var e=document.createElement('div');e.className='item';var t=document.createElement('div');t.className='t';t.innerHTML='<div><span class="dot" style="background:'+(x.t==='in'?color(x.c):'var(--loss)')+'"></span></div><small></small>';t.firstChild.appendChild(document.createTextNode(x.c));t.lastChild.textContent=x.n||'';var a=document.createElement('span');a.className='amt '+(x.t==='in'?'g':'l');a.textContent=(x.t==='in'?'+':'−')+money(x.amt);var b=document.createElement('button');b.className='x';b.setAttribute('aria-label','Borrar');b.textContent='×';b.onclick=function(){data=data.filter(function(y){return y.id!==x.id});save();render()};var r=document.createElement('div');r.className='row';r.style.flexWrap='nowrap';r.appendChild(a);r.appendChild(b);e.appendChild(t);e.appendChild(r);l.appendChild(e)});
+day.slice().reverse().forEach(function(x){var e=document.createElement('div');e.className='item';var t=document.createElement('div');t.className='t';t.innerHTML='<div><span class="dot" style="background:'+(x.t==='in'?color(x.c):'var(--loss)')+'"></span></div><small></small>';t.firstChild.appendChild(document.createTextNode(x.c));t.lastChild.textContent=[x.p,x.n].filter(Boolean).join(', ');var a=document.createElement('span');a.className='amt '+(x.t==='in'?'g':'l');a.textContent=(x.t==='in'?'+':'−')+money(x.amt);var b=document.createElement('button');b.className='x';b.setAttribute('aria-label','Borrar');b.textContent='×';b.onclick=function(){data=data.filter(function(y){return y.id!==x.id});save();render()};var r=document.createElement('div');r.className='row';r.style.flexWrap='nowrap';r.appendChild(a);r.appendChild(b);e.appendChild(t);e.appendChild(r);l.appendChild(e)});
+$('goalBox').hidden=!meta;if(meta){$('goalBar').value=Math.min(100,di/meta*100);$('goalTxt').textContent=di>=meta?'Meta cumplida: '+money(di)+' de '+money(meta):'Faltan '+money(meta-di)+' para la meta de '+money(meta)}
+var ini=new Date(f+'T12:00:00');ini.setDate(ini.getDate()-(ini.getDay()+6)%7);var wi=0,wo=0,wd=$('wDays');wd.innerHTML='';
+for(var i=0;i<7;i++){var q=new Date(ini);q.setDate(ini.getDate()+i);var k=q.getFullYear()+'-'+String(q.getMonth()+1).padStart(2,'0')+'-'+String(q.getDate()).padStart(2,'0');var dd=data.filter(function(x){return x.d===k});if(!dd.length)continue;var a1=sum(dd.filter(function(x){return x.t==='in'})),b1=sum(dd.filter(function(x){return x.t==='out'}));wi+=a1;wo+=b1;var row=document.createElement('div');row.className='item';var nm=document.createElement('span');nm.textContent=q.toLocaleDateString('es-CO',{weekday:'long',day:'numeric'})+(meta&&a1>=meta?' ✓ meta':'');var vl=document.createElement('span');vl.className='amt';vl.textContent=money(a1-b1);row.appendChild(nm);row.appendChild(vl);wd.appendChild(row)}
+$('wIn').textContent=money(wi);$('wOut').textContent=money(wo);$('wNet').textContent=money(wi-wo);$('wNet').className=wi<wo?'l':'g';
 var m=f.slice(0,7),mo=data.filter(function(x){return x.d.slice(0,7)===m});
 var mi=sum(mo.filter(function(x){return x.t==='in'})),mx=sum(mo.filter(function(x){return x.t==='out'}));
 $('mIn').textContent=money(mi);$('mOut').textContent=money(mx);$('mNet').textContent=money(mi-mx);$('mNet').className=mi-mx<0?'l':'g';
@@ -133,11 +161,13 @@ var dt=new Date(f+'T12:00:00');$('mTitle').textContent='Mes de '+dt.toLocaleDate
 $('tIn').onclick=function(){setMode('in')};$('tOut').onclick=function(){setMode('out')};
 $('fecha').onchange=render;
 $('add').onclick=function(){var v=parseFloat($('monto').value);if(!(v>0)){$('monto').focus();return}
-data.push({id:Date.now(),d:$('fecha').value||today(),t:mode,c:$('cat').value,amt:v,n:$('nota').value.trim()});save();$('monto').value='';$('nota').value='';render()};
+data.push({id:Date.now(),d:$('fecha').value||today(),t:mode,c:$('cat').value,p:$('pago').value,amt:v,n:$('nota').value.trim()});save();$('monto').value='';$('nota').value='';render()};
 $('addSrc').onclick=function(){var n=$('nueva').value.trim();if(!n){$('nueva').focus();return}var found=SRC.filter(function(x){return x[0].toLowerCase()===n.toLowerCase()})[0];if(found){n=found[0]}else{extra.push(n);buildSrc();save()}$('nueva').value='';setMode('in');options(n);render()};
-$('exp').onclick=function(){var t=JSON.stringify({data:data,apps:extra});$('bk').value=t;function manual(){$('bk').select();$('msg').textContent='Selecciona el texto y cópialo.'}try{navigator.clipboard.writeText(t).then(function(){$('msg').textContent='Respaldo copiado.'},manual)}catch(e){manual()}};
-$('imp').onclick=function(){try{var o=JSON.parse($('bk').value);var ok=Array.isArray(o.data)&&Array.isArray(o.apps)&&o.apps.every(function(n){return typeof n==='string'})&&o.data.every(function(x){return x&&typeof x.d==='string'&&typeof x.c==='string'&&(x.t==='in'||x.t==='out')&&typeof x.amt==='number'});if(!ok)throw 0;var ids={};data.forEach(function(x){ids[x.id]=1});o.data.forEach(function(x){if(!ids[x.id])data.push(x)});o.apps.forEach(function(n){if(extra.indexOf(n)<0)extra.push(n)});buildSrc();save();setMode(mode);render();$('msg').textContent='Respaldo restaurado.'}catch(e){$('msg').textContent='Ese texto no es un respaldo válido. Pégalo completo.'}};
-load();$('fecha').value=today();setMode('in');render();
+$('addGas').onclick=function(){var n=$('nuevoG').value.trim();if(!n){$('nuevoG').focus();return}var found=GAS.concat(extraG).filter(function(x){return x.toLowerCase()===n.toLowerCase()})[0];if(found){n=found}else{extraG.push(n);save()}$('nuevoG').value='';setMode('out');options(n);$('monto').focus()};
+$('saveMeta').onclick=function(){meta=Math.max(0,Number($('meta').value)||0);save();render()};
+$('exp').onclick=function(){var t=JSON.stringify({data:data,apps:extra,gastos:extraG,meta:meta});$('bk').value=t;function manual(){$('bk').select();$('msg').textContent='Selecciona el texto y cópialo.'}try{navigator.clipboard.writeText(t).then(function(){$('msg').textContent='Respaldo copiado.'},manual)}catch(e){manual()}};
+$('imp').onclick=function(){try{var o=JSON.parse($('bk').value);var ok=Array.isArray(o.data)&&Array.isArray(o.apps)&&o.apps.every(function(n){return typeof n==='string'})&&o.data.every(function(x){return x&&typeof x.d==='string'&&typeof x.c==='string'&&(x.t==='in'||x.t==='out')&&typeof x.amt==='number'&&(x.p===undefined||typeof x.p==='string')});var g=o.gastos||[];if(!ok||!Array.isArray(g)||!g.every(function(n){return typeof n==='string'}))throw 0;g.forEach(function(n){if(extraG.indexOf(n)<0)extraG.push(n)});var ids={};data.forEach(function(x){ids[x.id]=1});o.data.forEach(function(x){if(!ids[x.id])data.push(x)});o.apps.forEach(function(n){if(extra.indexOf(n)<0)extra.push(n)});if(!meta&&typeof o.meta==='number'&&o.meta>0){meta=o.meta;$('meta').value=meta}buildSrc();save();setMode(mode);render();$('msg').textContent='Respaldo restaurado.'}catch(e){$('msg').textContent='Ese texto no es un respaldo válido. Pégalo completo.'}};
+load();$('meta').value=meta||'';$('fecha').value=today();setMode('in');render();
 })();
 </script>
 </body>

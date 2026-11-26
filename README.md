@@ -5,8 +5,10 @@ Control diario de ganancias y gastos para domiciliarios en moto. Funciona en el 
 ## Funciones
 
 - Ganancias por aplicación: Uber, Didi, servicios por fuera y las que agregues (InDrive, Rappi, etc.).
-- Gastos: gasolina, aceite, llantas, mantenimiento y otros.
+- Gastos: gasolina, aceite, llantas, mantenimiento, almuerzo, café, baño y los tipos que agregues.
+- Forma de pago: efectivo, tarjeta o transferencia, con el neto del día por cada una.
 - Neto del día, movimientos por fecha y resumen del mes.
+- Resumen semanal (lunes a domingo) y meta diaria de ganancias.
 - Respaldo: copiar los datos como texto y restaurarlos.
 - Modo claro y oscuro según el celular.
 
@@ -30,7 +32,7 @@ Un solo archivo HTML con CSS y JavaScript, sin compilación. Las fuentes Barlow 
 
 ## Pendiente
 
-- Resumen semanal y gráfico de ganancias contra gastos.
+- Gráfico de ganancias contra gastos.
 - Filtros por aplicación y categoría.
 - Exportar a CSV.
 - Editar o borrar aplicaciones agregadas.
